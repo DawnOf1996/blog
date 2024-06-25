@@ -1,0 +1,195 @@
+---
+layout: default
+---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ site.title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 80%;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .content {
+            margin-top: 20px;
+        }
+
+        .post {
+            margin-bottom: 20px;
+        }
+
+        .post-title {
+            font-size: 16px;
+            margin: 0;
+        }
+
+        .post-date {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .category {
+            margin-bottom: 20px;
+        }
+
+        .accordion {
+            background-color: #f1f1f1;
+            color: #333;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-align: left;
+            outline: none;
+            font-size: 1em;
+            transition: 0.4s;
+            margin-bottom: 10px;
+        }
+
+        .active, .accordion:hover {
+            background-color: #ddd;
+        }
+
+        .panel {
+            padding: 0 18px;
+            display: none;
+            background-color: white;
+            overflow: hidden;
+            border-left: 1px solid #ccc;
+            border-right: 1px solid #ccc;
+            border-bottom: 1px solid #ccc;
+            border-radius: 0 0 4px 4px;
+            margin-bottom: 10px;
+        }
+
+        .post-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .post-list li {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .post-list li:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+<main class="container">
+    <section>
+        <div class="content">
+            {% assign posts_by_year = site.posts | group_by_exp:"post", "post.date | date: '%Y'" %}
+            {% for year in posts_by_year %}
+            <button class="accordion">{{ year.name }}</button>
+            <div class="panel">
+                <ul class="post-list">
+                    {% for post in year.items %}
+                    <li class="post">
+                        <h4 class="post-title">
+                            <a href="{{ site.baseurl }}{{ post.url }}">{{ post.title }}</a>
+                            <br/>
+                            <span class="post-date">{{ post.date | date: "%Y-%m-%d" }}</span>
+                        </h4>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</main>
+
+<script>
+    // 打开或创建名为blogDB的IndexedDB数据库，版本为1
+    let db;
+    let request = indexedDB.open('blogDB', 1);
+
+    // 处理数据库打开错误
+    request.onerror = function (event) {
+        console.error('IndexedDB error:', event.target.errorCode);
+    };
+
+    // 数据库升级事件，用于初始化数据库结构
+    request.onupgradeneeded = function (event) {
+        db = event.target.result;
+        // 创建名为titles的对象存储空间，使用title作为主键
+        let objectStore = db.createObjectStore('titles', {keyPath: 'title'});
+        // 创建url索引，允许重复
+        objectStore.createIndex('url', 'url', {unique: false});
+    };
+
+    // 数据库成功打开时的处理
+    request.onsuccess = function (event) {
+        db = event.target.result;
+
+        // 获取所有文章列表项
+        let postList = document.querySelectorAll(".post-list li");
+        let titles = [];
+
+        // 遍历所有文章，生成包含标题和URL的数组
+        postList.forEach(function (post) {
+            let title = post.querySelector("a").textContent;
+            let url = post.querySelector("a").href;
+            titles.push({
+                "title": title,
+                "url": url
+            });
+        });
+
+        // 将数据存储到IndexedDB中
+        storeData(titles);
+    };
+
+    // 将文章标题和URL数据存储到IndexedDB的titles对象存储空间中
+    function storeData(titles) {
+        let transaction = db.transaction(['titles'], 'readwrite');
+        let objectStore = transaction.objectStore('titles');
+
+        // 使用put方法插入或更新数据
+        titles.forEach(function (title, index) {
+            let request = objectStore.put({
+                title: title.title,
+                url: title.url
+            });
+
+            // 处理存储错误
+            request.onerror = function (event) {
+                console.error('Error storing data:', event.target.error);
+            };
+        });
+    }
+
+    // 获取所有折叠按钮元素
+    let accordions = document.getElementsByClassName("accordion");
+
+    // 为每个折叠按钮添加点击事件，控制面板的展开和关闭
+    for (let i = 0; i < accordions.length; i++) {
+        accordions[i].addEventListener("click", function () {
+            this.classList.toggle("active");
+            let panel = this.nextElementSibling;
+            if (panel.style.display === "block") {
+                panel.style.display = "none";
+            } else {
+                panel.style.display = "block";
+            }
+        });
+    }
+</script>
+</body>
+</html>
